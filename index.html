@@ -37,44 +37,16 @@
               lucide.createIcons();
             }
           });
-          const [projects, setProjects] = useState([
-            {
-              id: 1,
-              orderDate: '2024-01-15',
-              clientName: 'חברת ABC',
-              orderDetails: 'מכל חלב 5000L + מערכת קירור',
-              transactionAmount: 45000,
-              vatPercent: 17,
-              totalPayment: 52650,
-              projectReceipts: 30000,
-              remainingBalance: 22650,
-              projectNotes: 'פרויקט דחוף - לקוח VIP'
-            },
-            {
-              id: 2,
-              orderDate: '2024-02-01',
-              clientName: 'משק השמש',
-              orderDetails: 'מכל חלב 3000L + מערכת קירור',
-              transactionAmount: 32000,
-              vatPercent: 17,
-              totalPayment: 37440,
-              projectReceipts: 37440,
-              remainingBalance: 0,
-              projectNotes: 'פרויקט הושלם בהצלחה'
-            },
-            {
-              id: 3,
-              orderDate: '2024-02-15',
-              clientName: 'חוות הזית',
-              orderDetails: 'מכל חלב 7000L + מערכת קירור מתקדמת',
-              transactionAmount: 68000,
-              vatPercent: 17,
-              totalPayment: 79560,
-              projectReceipts: 15000,
-              remainingBalance: 64560,
-              projectNotes: 'ממתין לאישור נוסף'
-            }
-          ]);
+          // Load projects from localStorage or start with empty array
+          const [projects, setProjects] = useState(() => {
+            const savedProjects = localStorage.getItem('financialDashboardProjects');
+            return savedProjects ? JSON.parse(savedProjects) : [];
+          });
+          
+          // Save projects to localStorage whenever projects change
+          React.useEffect(() => {
+            localStorage.setItem('financialDashboardProjects', JSON.stringify(projects));
+          }, [projects]);
 
           const [selectedProject, setSelectedProject] = useState('all');
           const [isEditing, setIsEditing] = useState(null);
@@ -89,6 +61,11 @@
           });
           const [showAddForm, setShowAddForm] = useState(false);
           const [searchTerm, setSearchTerm] = useState('');
+          const [isImporting, setIsImporting] = useState(false);
+          const [importError, setImportError] = useState('');
+          
+          // File input ref for import
+          const fileInputRef = React.useRef(null);
 
           // חישוב KPI
           const dashboardData = useMemo(() => {
@@ -176,6 +153,89 @@
           const handleDeleteProject = (id) => {
             setProjects(projects.filter(p => p.id !== id));
           };
+          
+          // Import projects from JSON file
+          const handleImportProjects = (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            setIsImporting(true);
+            setImportError('');
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              try {
+                const importedData = JSON.parse(e.target.result);
+                
+                // Validate imported data
+                if (!Array.isArray(importedData)) {
+                  throw new Error('הקובץ חייב להכיל מערך של פרויקטים');
+                }
+                
+                // Validate each project has required fields
+                const validatedProjects = importedData.map((project, index) => {
+                  if (!project.clientName || !project.orderDetails || typeof project.transactionAmount !== 'number') {
+                    throw new Error(`פרויקט מספר ${index + 1} חסר שדות חובה`);
+                  }
+                  
+                  // Ensure all numeric fields are properly calculated
+                  const transactionAmount = parseFloat(project.transactionAmount) || 0;
+                  const vatPercent = parseFloat(project.vatPercent) || 17;
+                  const projectReceipts = parseFloat(project.projectReceipts) || 0;
+                  const totalPayment = transactionAmount * (1 + vatPercent / 100);
+                  const remainingBalance = totalPayment - projectReceipts;
+                  
+                  return {
+                    id: project.id || Date.now() + Math.random(),
+                    orderDate: project.orderDate || new Date().toISOString().split('T')[0],
+                    clientName: project.clientName,
+                    orderDetails: project.orderDetails,
+                    transactionAmount,
+                    vatPercent,
+                    totalPayment,
+                    projectReceipts,
+                    remainingBalance,
+                    projectNotes: project.projectNotes || ''
+                  };
+                });
+                
+                setProjects(validatedProjects);
+                alert(`הועלו בהצלחה ${validatedProjects.length} פרויקטים`);
+                
+              } catch (error) {
+                setImportError(error.message);
+                alert('שגיאה ביבוא הקובץ: ' + error.message);
+              } finally {
+                setIsImporting(false);
+                if (fileInputRef.current) {
+                  fileInputRef.current.value = '';
+                }
+              }
+            };
+            
+            reader.readAsText(file);
+          };
+          
+          // Export projects to JSON file
+          const handleExportProjects = () => {
+            if (projects.length === 0) {
+              alert('אין פרויקטים לייצוא');
+              return;
+            }
+            
+            const dataStr = JSON.stringify(projects, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(dataBlob);
+            
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `financial-dashboard-projects-${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            URL.revokeObjectURL(url);
+          };
 
           const filteredProjectsForTable = projects.filter(project =>
             project.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -185,8 +245,9 @@
           const formatCurrency = (amount) => {
             return new Intl.NumberFormat('he-IL', {
               style: 'currency',
-              currency: 'ILS'
-            }).format(amount);
+              currency: 'ILS',
+              currencyDisplay: 'symbol'
+            }).format(amount).replace('IL', '');
           };
 
           const KPICard = ({ title, value, iconName, color, subtitle }) => (
@@ -430,7 +491,7 @@
               ),
 
               activeTab === 'database' && React.createElement('div', { className: "space-y-6" },
-                // Search and Add
+                // Search, Import, Export, and Add
                 React.createElement('div', { className: "bg-white rounded-lg shadow p-4" },
                   React.createElement('div', { className: "flex justify-between items-center mb-4" },
                     React.createElement('div', { className: "flex items-center space-x-reverse space-x-4" },
@@ -443,14 +504,43 @@
                         className: "border border-gray-300 rounded-md px-3 py-2 w-80 text-right"
                       })
                     ),
-                    React.createElement('button', {
-                      onClick: () => setShowAddForm(true),
-                      className: "bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center space-x-reverse space-x-2"
-                    },
-                      React.createElement(Icon, { name: "plus", className: "h-4 w-4" }),
-                      React.createElement('span', null, 'הוסף פרויקט')
+                    React.createElement('div', { className: "flex items-center space-x-reverse space-x-2" },
+                      // Import button
+                      React.createElement('button', {
+                        onClick: () => fileInputRef.current.click(),
+                        disabled: isImporting,
+                        className: "bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center space-x-reverse space-x-2 disabled:opacity-50"
+                      },
+                        React.createElement(Icon, { name: "upload", className: "h-4 w-4" }),
+                        React.createElement('span', null, isImporting ? 'מייבא...' : 'יבוא מקובץ')
+                      ),
+                      // Export button
+                      React.createElement('button', {
+                        onClick: handleExportProjects,
+                        disabled: projects.length === 0,
+                        className: "bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center space-x-reverse space-x-2 disabled:opacity-50"
+                      },
+                        React.createElement(Icon, { name: "download", className: "h-4 w-4" }),
+                        React.createElement('span', null, 'ייצוא לקובץ')
+                      ),
+                      // Add project button
+                      React.createElement('button', {
+                        onClick: () => setShowAddForm(true),
+                        className: "bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center space-x-reverse space-x-2"
+                      },
+                        React.createElement(Icon, { name: "plus", className: "h-4 w-4" }),
+                        React.createElement('span', null, 'הוסף פרויקט')
+                      )
                     )
-                  )
+                  ),
+                  // Hidden file input for import
+                  React.createElement('input', {
+                    type: "file",
+                    ref: fileInputRef,
+                    accept: ".json",
+                    onChange: handleImportProjects,
+                    style: { display: 'none' }
+                  })
                 ),
 
                 // Add Project Form
@@ -519,8 +609,31 @@
                   )
                 ),
 
-                // Projects Table
-                React.createElement('div', { className: "bg-white rounded-lg shadow overflow-hidden" },
+                // Empty state or Projects Table
+                projects.length === 0 ? 
+                  React.createElement('div', { className: "bg-white rounded-lg shadow p-12 text-center" },
+                    React.createElement(Icon, { name: "database", className: "h-16 w-16 text-gray-400 mx-auto mb-4" }),
+                    React.createElement('h3', { className: "text-lg font-semibold text-gray-900 mb-2" }, 'אין פרויקטים להצגה'),
+                    React.createElement('p', { className: "text-gray-600 mb-6" }, 'התחל על ידי הוספת פרויקט חדש או יייבוא נתונים מקובץ JSON'),
+                    React.createElement('div', { className: "flex justify-center space-x-reverse space-x-4" },
+                      React.createElement('button', {
+                        onClick: () => setShowAddForm(true),
+                        className: "bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 flex items-center space-x-reverse space-x-2"
+                      },
+                        React.createElement(Icon, { name: "plus", className: "h-5 w-5" }),
+                        React.createElement('span', null, 'הוסף פרויקט ראשון')
+                      ),
+                      React.createElement('button', {
+                        onClick: () => fileInputRef.current.click(),
+                        className: "bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 flex items-center space-x-reverse space-x-2"
+                      },
+                        React.createElement(Icon, { name: "upload", className: "h-5 w-5" }),
+                        React.createElement('span', null, 'יייבוא נתונים')
+                      )
+                    )
+                  ) :
+                  // Projects Table
+                  React.createElement('div', { className: "bg-white rounded-lg shadow overflow-hidden" },
                   React.createElement('div', { className: "overflow-x-auto" },
                     React.createElement('table', { className: "min-w-full divide-y divide-gray-200" },
                       React.createElement('thead', { className: "bg-gray-50" },
