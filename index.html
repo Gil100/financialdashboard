@@ -49,16 +49,8 @@
               console.warn('Lucide icons could not be initialized:', error);
             }
           });
-          // Load projects from localStorage or start with empty array
-          const [projects, setProjects] = useState(() => {
-            const savedProjects = localStorage.getItem('financialDashboardProjects');
-            return savedProjects ? JSON.parse(savedProjects) : [];
-          });
-          
-          // Save projects to localStorage whenever projects change
-          React.useEffect(() => {
-            localStorage.setItem('financialDashboardProjects', JSON.stringify(projects));
-          }, [projects]);
+          // Always start with empty array - no automatic persistence
+          const [projects, setProjects] = useState([]);
 
           const [selectedProject, setSelectedProject] = useState('all');
           const [isEditing, setIsEditing] = useState(null);
@@ -247,6 +239,19 @@
             document.body.removeChild(link);
             
             URL.revokeObjectURL(url);
+          };
+          
+          // Clear all projects (start fresh)
+          const handleClearDatabase = () => {
+            if (projects.length === 0) {
+              alert('המסד נתונים כבר ריק');
+              return;
+            }
+            
+            if (confirm('האם אתה בטוח שברצונך למחוק את כל הפרויקטים? פעולה זו אינה ניתנת לביטול.')) {
+              setProjects([]);
+              alert('מסד הנתונים נמחק בהצלחה');
+            }
           };
 
           const filteredProjectsForTable = projects.filter(project =>
@@ -535,6 +540,15 @@
                         React.createElement(Icon, { name: "download", className: "h-4 w-4" }),
                         React.createElement('span', null, 'ייצוא לקובץ')
                       ),
+                      // Clear database button
+                      React.createElement('button', {
+                        onClick: handleClearDatabase,
+                        disabled: projects.length === 0,
+                        className: "bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 flex items-center space-x-reverse space-x-2 disabled:opacity-50"
+                      },
+                        React.createElement(Icon, { name: "trash-2", className: "h-4 w-4" }),
+                        React.createElement('span', null, 'מחק הכל')
+                      ),
                       // Add project button
                       React.createElement('button', {
                         onClick: () => setShowAddForm(true),
@@ -625,22 +639,22 @@
                 projects.length === 0 ? 
                   React.createElement('div', { className: "bg-white rounded-lg shadow p-12 text-center" },
                     React.createElement(Icon, { name: "database", className: "h-16 w-16 text-gray-400 mx-auto mb-4" }),
-                    React.createElement('h3', { className: "text-lg font-semibold text-gray-900 mb-2" }, 'אין פרויקטים להצגה'),
-                    React.createElement('p', { className: "text-gray-600 mb-6" }, 'התחל על ידי הוספת פרויקט חדש או יייבוא נתונים מקובץ JSON'),
+                    React.createElement('h3', { className: "text-lg font-semibold text-gray-900 mb-2" }, 'מסד נתונים ריק'),
+                    React.createElement('p', { className: "text-gray-600 mb-6" }, 'יבא את מסד הנתונים שלך מקובץ JSON או התחל ליצור פרויקטים חדשים'),
                     React.createElement('div', { className: "flex justify-center space-x-reverse space-x-4" },
-                      React.createElement('button', {
-                        onClick: () => setShowAddForm(true),
-                        className: "bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 flex items-center space-x-reverse space-x-2"
-                      },
-                        React.createElement(Icon, { name: "plus", className: "h-5 w-5" }),
-                        React.createElement('span', null, 'הוסף פרויקט ראשון')
-                      ),
                       React.createElement('button', {
                         onClick: () => fileInputRef.current.click(),
                         className: "bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 flex items-center space-x-reverse space-x-2"
                       },
                         React.createElement(Icon, { name: "upload", className: "h-5 w-5" }),
-                        React.createElement('span', null, 'יייבוא נתונים')
+                        React.createElement('span', null, 'יבוא מסד נתונים')
+                      ),
+                      React.createElement('button', {
+                        onClick: () => setShowAddForm(true),
+                        className: "bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 flex items-center space-x-reverse space-x-2"
+                      },
+                        React.createElement(Icon, { name: "plus", className: "h-5 w-5" }),
+                        React.createElement('span', null, 'צור פרויקט חדש')
                       )
                     )
                   ) :
