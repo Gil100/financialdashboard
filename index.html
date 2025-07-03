@@ -8,7 +8,6 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -21,59 +20,39 @@
     
     <script type="text/babel">
         const { useState, useMemo } = React;
-        // Simple icon component with robust error boundary
-        const Icon = React.memo(({ name, className = "h-4 w-4" }) => {
-          const [hasError, setHasError] = React.useState(false);
+        // Simple icon component using text symbols (no external dependencies)
+        const Icon = ({ name, className = "h-4 w-4" }) => {
+          const iconMap = {
+            'filter': '⚙',
+            'dollar-sign': '₪',
+            'receipt': '📄',
+            'trending-up': '📈',
+            'check-circle': '✓',
+            'alert-circle': '⚠',
+            'search': '🔍',
+            'upload': '↑',
+            'download': '↓',
+            'plus': '+',
+            'edit-2': '✎',
+            'trash-2': '🗑',
+            'save': '💾',
+            'x': '✕',
+            'database': '📊'
+          };
           
-          React.useEffect(() => {
-            // Reset error state when props change
-            setHasError(false);
-          }, [name, className]);
+          const symbol = iconMap[name] || '•';
           
-          React.useEffect(() => {
-            // Try to create icons after component mounts
-            try {
-              if (typeof lucide !== 'undefined' && lucide.createIcons) {
-                lucide.createIcons();
-              }
-            } catch (error) {
-              setHasError(true);
+          return React.createElement('span', { 
+            className: className,
+            style: { 
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '0.875rem',
+              fontFamily: 'system-ui, -apple-system, sans-serif'
             }
-          });
-          
-          if (hasError) {
-            return React.createElement('span', { 
-              className: className,
-              style: { 
-                display: 'inline-block', 
-                width: '1rem', 
-                height: '1rem',
-                textAlign: 'center',
-                lineHeight: '1rem'
-              }
-            }, '•');
-          }
-          
-          try {
-            return React.createElement('i', { 
-              'data-lucide': name, 
-              className: className,
-              key: `icon-${name}` // Add key for React reconciliation
-            });
-          } catch (error) {
-            setHasError(true);
-            return React.createElement('span', { 
-              className: className,
-              style: { 
-                display: 'inline-block', 
-                width: '1rem', 
-                height: '1rem',
-                textAlign: 'center',
-                lineHeight: '1rem'
-              }
-            }, '•');
-          }
-        });
+          }, symbol);
+        };
 
         // Error Boundary Component
         class ErrorBoundary extends React.Component {
@@ -104,15 +83,6 @@
         const FinancialDashboard = () => {
           const [activeTab, setActiveTab] = useState('dashboard');
           
-          React.useEffect(() => {
-            try {
-              if (typeof lucide !== 'undefined' && lucide.createIcons) {
-                lucide.createIcons();
-              }
-            } catch (error) {
-              console.warn('Lucide icons could not be initialized:', error);
-            }
-          });
           // Always start with empty array - no automatic persistence
           const [projects, setProjects] = useState([]);
 
