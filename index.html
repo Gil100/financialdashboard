@@ -4,11 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>דשבורד פיננסי חכם</title>
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide-react@latest/dist/umd/lucide-react.js"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -21,10 +21,22 @@
     
     <script type="text/babel">
         const { useState, useMemo } = React;
-        const { Plus, Edit2, Trash2, Save, X, Search, Filter, TrendingUp, DollarSign, Receipt, AlertCircle, CheckCircle } = LucideReact;
+        // Simple icon component using Lucide
+        const Icon = ({ name, className = "h-4 w-4" }) => {
+          return React.createElement('i', { 
+            'data-lucide': name, 
+            className: className 
+          });
+        };
 
         const FinancialDashboard = () => {
           const [activeTab, setActiveTab] = useState('dashboard');
+          
+          React.useEffect(() => {
+            if (typeof lucide !== 'undefined') {
+              lucide.createIcons();
+            }
+          });
           const [projects, setProjects] = useState([
             {
               id: 1,
@@ -177,7 +189,7 @@
             }).format(amount);
           };
 
-          const KPICard = ({ title, value, icon: Icon, color, subtitle }) => (
+          const KPICard = ({ title, value, iconName, color, subtitle }) => (
             React.createElement('div', {
               className: "bg-white rounded-lg shadow-lg p-6 border-r-4",
               style: { borderColor: color }
@@ -188,7 +200,7 @@
                   React.createElement('p', { className: "text-2xl font-bold text-gray-900" }, value),
                   subtitle && React.createElement('p', { className: "text-sm text-gray-500 mt-1" }, subtitle)
                 ),
-                React.createElement(Icon, { className: "h-8 w-8", style: { color } })
+                React.createElement(Icon, { name: iconName, className: "h-8 w-8", style: { color } })
               )
             )
           );
@@ -269,11 +281,11 @@
                     React.createElement('button', {
                       onClick: handleSave,
                       className: "text-green-600 hover:text-green-900"
-                    }, React.createElement(Save, { className: "h-4 w-4" })),
+                    }, React.createElement(Icon, { name: "save", className: "h-4 w-4" })),
                     React.createElement('button', {
                       onClick: onCancel,
                       className: "text-gray-600 hover:text-gray-900"
-                    }, React.createElement(X, { className: "h-4 w-4" }))
+                    }, React.createElement(Icon, { name: "x", className: "h-4 w-4" }))
                   )
                 )
               );
@@ -296,11 +308,11 @@
                   React.createElement('button', {
                     onClick: onEdit,
                     className: "text-blue-600 hover:text-blue-900"
-                  }, React.createElement(Edit2, { className: "h-4 w-4" })),
+                  }, React.createElement(Icon, { name: "edit-2", className: "h-4 w-4" })),
                   React.createElement('button', {
                     onClick: onDelete,
                     className: "text-red-600 hover:text-red-900"
-                  }, React.createElement(Trash2, { className: "h-4 w-4" }))
+                  }, React.createElement(Icon, { name: "trash-2", className: "h-4 w-4" }))
                 )
               )
             );
@@ -339,7 +351,7 @@
                 // Project Filter
                 React.createElement('div', { className: "bg-white rounded-lg shadow p-4" },
                   React.createElement('div', { className: "flex items-center space-x-reverse space-x-4" },
-                    React.createElement(Filter, { className: "h-5 w-5 text-gray-500" }),
+                    React.createElement(Icon, { name: "filter", className: "h-5 w-5 text-gray-500" }),
                     React.createElement('label', { className: "text-sm font-medium text-gray-700" }, 'סינון לפי פרויקט:'),
                     React.createElement('select', {
                       value: selectedProject,
@@ -361,37 +373,37 @@
                   React.createElement(KPICard, {
                     title: "סכום עסקאות",
                     value: formatCurrency(dashboardData.totalTransactionAmount),
-                    icon: DollarSign,
+                    iconName: "dollar-sign",
                     color: "#3B82F6"
                   }),
                   React.createElement(KPICard, {
                     title: "סכום מע״מ",
                     value: formatCurrency(dashboardData.totalVatAmount),
-                    icon: Receipt,
+                    iconName: "receipt",
                     color: "#10B981"
                   }),
                   React.createElement(KPICard, {
                     title: "סה״כ לתשלום",
                     value: formatCurrency(dashboardData.totalPayment),
-                    icon: TrendingUp,
+                    iconName: "trending-up",
                     color: "#8B5CF6"
                   }),
                   React.createElement(KPICard, {
                     title: "תקבולים לפרויקט",
                     value: formatCurrency(dashboardData.totalReceipts),
-                    icon: CheckCircle,
+                    iconName: "check-circle",
                     color: "#06B6D4"
                   }),
                   React.createElement(KPICard, {
                     title: "יתרה לתשלום",
                     value: formatCurrency(dashboardData.totalRemaining),
-                    icon: AlertCircle,
+                    iconName: "alert-circle",
                     color: "#EF4444"
                   }),
                   React.createElement(KPICard, {
                     title: "אחוז השלמה",
                     value: `${dashboardData.completionRate.toFixed(1)}%`,
-                    icon: TrendingUp,
+                    iconName: "trending-up",
                     color: "#F59E0B",
                     subtitle: `${dashboardData.completedProjects} מתוך ${dashboardData.totalProjects} פרויקטים`
                   })
@@ -422,7 +434,7 @@
                 React.createElement('div', { className: "bg-white rounded-lg shadow p-4" },
                   React.createElement('div', { className: "flex justify-between items-center mb-4" },
                     React.createElement('div', { className: "flex items-center space-x-reverse space-x-4" },
-                      React.createElement(Search, { className: "h-5 w-5 text-gray-500" }),
+                      React.createElement(Icon, { name: "search", className: "h-5 w-5 text-gray-500" }),
                       React.createElement('input', {
                         type: "text",
                         placeholder: "חיפוש לפי שם לקוח או פירוט הזמנה...",
@@ -435,7 +447,7 @@
                       onClick: () => setShowAddForm(true),
                       className: "bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center space-x-reverse space-x-2"
                     },
-                      React.createElement(Plus, { className: "h-4 w-4" }),
+                      React.createElement(Icon, { name: "plus", className: "h-4 w-4" }),
                       React.createElement('span', null, 'הוסף פרויקט')
                     )
                   )
