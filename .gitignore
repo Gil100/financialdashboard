@@ -1,6 +1,10 @@
 # Project planning files
 proj.md
 
+# Data files - user's private project data
+financial-dashboard-projects-*.json
+*.json
+
 # Node modules
 node_modules/
 

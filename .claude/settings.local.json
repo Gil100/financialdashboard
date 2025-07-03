@@ -10,7 +10,11 @@
       "mcp__playwright__browser_type",
       "mcp__playwright__browser_navigate_back",
       "mcp__playwright__browser_close",
-      "WebFetch(domain:gil100.github.io)"
+      "WebFetch(domain:gil100.github.io)",
+      "mcp__playwright__browser_file_upload",
+      "mcp__playwright__browser_handle_dialog",
+      "mcp__playwright__browser_wait_for",
+      "mcp__playwright__browser_press_key"
     ],
     "deny": []
   }
