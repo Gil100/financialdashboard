@@ -82,6 +82,11 @@
 
         const FinancialDashboard = () => {
           const [activeTab, setActiveTab] = useState('dashboard');
+          const [currentWorkspace, setCurrentWorkspace] = useState('muller');
+          const [workspaces, setWorkspaces] = useState([
+            { id: 'muller', name: 'Muller Refrigeration Systems Ltd.' },
+            { id: 'herman', name: 'Herman Project' }
+          ]);
           
           // Always start with empty array - no automatic persistence
           const [projects, setProjects] = useState([]);
@@ -101,6 +106,8 @@
           const [searchTerm, setSearchTerm] = useState('');
           const [isImporting, setIsImporting] = useState(false);
           const [importError, setImportError] = useState('');
+          const [showNewWorkspaceForm, setShowNewWorkspaceForm] = useState(false);
+          const [newWorkspaceName, setNewWorkspaceName] = useState('');
           
           // File input ref for import
           const fileInputRef = React.useRef(null);
@@ -133,6 +140,109 @@
               totalProjects: filteredProjects.length
             };
           }, [projects, selectedProject]);
+
+          // Workspace management functions
+          const loadWorkspaceData = (workspaceId) => {
+            try {
+              const data = localStorage.getItem(`workspace-${workspaceId}`);
+              if (data) {
+                const parsedData = JSON.parse(data);
+                setProjects(parsedData);
+              } else {
+                setProjects([]);
+              }
+            } catch (error) {
+              console.error('Error loading workspace data:', error);
+              setProjects([]);
+            }
+          };
+
+          const saveWorkspaceData = (workspaceId, projectsData) => {
+            try {
+              localStorage.setItem(`workspace-${workspaceId}`, JSON.stringify(projectsData));
+            } catch (error) {
+              console.error('Error saving workspace data:', error);
+            }
+          };
+
+          const switchWorkspace = (workspaceId) => {
+            saveWorkspaceData(currentWorkspace, projects);
+            setCurrentWorkspace(workspaceId);
+            loadWorkspaceData(workspaceId);
+            
+            const config = {
+              workspaces,
+              currentWorkspace: workspaceId
+            };
+            localStorage.setItem('workspace-config', JSON.stringify(config));
+          };
+
+          const createWorkspace = () => {
+            if (!newWorkspaceName.trim()) return;
+            
+            const newId = Date.now().toString();
+            const newWorkspace = {
+              id: newId,
+              name: newWorkspaceName.trim()
+            };
+            
+            const updatedWorkspaces = [...workspaces, newWorkspace];
+            setWorkspaces(updatedWorkspaces);
+            
+            saveWorkspaceData(newId, []);
+            switchWorkspace(newId);
+            
+            setNewWorkspaceName('');
+            setShowNewWorkspaceForm(false);
+          };
+
+          // Initialize workspace data
+          React.useEffect(() => {
+            try {
+              const config = localStorage.getItem('workspace-config');
+              if (config) {
+                const parsedConfig = JSON.parse(config);
+                setWorkspaces(parsedConfig.workspaces || workspaces);
+                setCurrentWorkspace(parsedConfig.currentWorkspace || 'muller');
+                loadWorkspaceData(parsedConfig.currentWorkspace || 'muller');
+              } else {
+                const mullerData = [
+                  {
+                    id: 1751535923514,
+                    orderDate: "2025-04-20",
+                    clientName: "רפת אל חטאב",
+                    orderDetails: "צ'ילר דמו",
+                    transactionAmount: 100000,
+                    vatPercent: 18,
+                    totalPayment: 118000,
+                    projectReceipts: 0,
+                    remainingBalance: 118000,
+                    projectNotes: "פריסה ל 4 צ'קים , צ'ק ראשון 10/10/25  - אלדד צריך לאסוף"
+                  }
+                ];
+                
+                setProjects(mullerData);
+                saveWorkspaceData('muller', mullerData);
+                saveWorkspaceData('herman', []);
+                
+                const initialConfig = {
+                  workspaces: workspaces,
+                  currentWorkspace: 'muller'
+                };
+                localStorage.setItem('workspace-config', JSON.stringify(initialConfig));
+              }
+            } catch (error) {
+              console.error('Error initializing workspace:', error);
+              loadWorkspaceData('muller');
+            }
+          }, []);
+
+          // Save workspace data whenever projects change
+          React.useEffect(() => {
+            if (projects.length > 0 || currentWorkspace) {
+              saveWorkspaceData(currentWorkspace, projects);
+            }
+          }, [projects, currentWorkspace]);
 
           const handleAddProject = () => {
             // Fix: Add validation and safe parsing
@@ -238,7 +348,8 @@
                 });
                 
                 setProjects(validatedProjects);
-                alert(`הועלו בהצלחה ${validatedProjects.length} פרויקטים`);
+                const currentWorkspaceName = workspaces.find(w => w.id === currentWorkspace)?.name || 'workspace';
+                alert(`יובאו בהצלחה ${validatedProjects.length} פרויקטים למרחב העבודה "${currentWorkspaceName}"`);
                 
               } catch (error) {
                 setImportError(error.message);
@@ -267,7 +378,9 @@
             
             const link = document.createElement('a');
             link.href = url;
-            link.download = `financial-dashboard-projects-${new Date().toISOString().split('T')[0]}.json`;
+            const currentWorkspaceName = workspaces.find(w => w.id === currentWorkspace)?.name || 'workspace';
+            const today = new Date().toISOString().split('T')[0];
+            link.download = `${currentWorkspaceName.replace(/[^a-zA-Z0-9\u0590-\u05FF]/g, '-')}-${today}.json`;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -435,7 +548,29 @@
             React.createElement('div', { className: "bg-white shadow-sm border-b" },
               React.createElement('div', { className: "max-w-7xl mx-auto px-4" },
                 React.createElement('div', { className: "flex justify-between items-center py-4" },
-                  React.createElement('h1', { className: "text-2xl font-bold text-gray-900" }, 'דשבורד פיננסי חכם'),
+                  React.createElement('div', { className: "flex items-center space-x-reverse space-x-4" },
+                    React.createElement('h1', { className: "text-2xl font-bold text-gray-900" }, 'דשבורד פיננסי חכם'),
+                    
+                    // Workspace Selector
+                    React.createElement('div', { className: "flex items-center space-x-reverse space-x-3 bg-gray-50 rounded-lg p-2" },
+                      React.createElement(Icon, { name: 'database', className: "h-5 w-5 text-gray-600" }),
+                      React.createElement('select', {
+                        value: currentWorkspace,
+                        onChange: (e) => switchWorkspace(e.target.value),
+                        className: "bg-transparent border-none outline-none text-sm font-medium text-gray-700 cursor-pointer"
+                      }, 
+                        workspaces.map(workspace => 
+                          React.createElement('option', { key: workspace.id, value: workspace.id }, workspace.name)
+                        )
+                      ),
+                      React.createElement('button', {
+                        onClick: () => setShowNewWorkspaceForm(true),
+                        className: "text-blue-600 hover:text-blue-700 text-sm font-medium",
+                        title: "הוסף מרחב עבודה חדש"
+                      }, React.createElement(Icon, { name: 'plus', className: "h-4 w-4" }))
+                    )
+                  ),
+                  
                   React.createElement('div', { className: "flex space-x-reverse space-x-4" },
                     React.createElement('button', {
                       onClick: () => setActiveTab('dashboard'),
@@ -454,6 +589,36 @@
                       }`
                     }, 'מסד נתונים')
                   )
+                )
+              )
+            ),
+
+            // New Workspace Form Modal
+            showNewWorkspaceForm && React.createElement('div', { 
+              className: "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" 
+            },
+              React.createElement('div', { className: "bg-white rounded-lg p-6 w-96 max-w-md mx-4" },
+                React.createElement('h3', { className: "text-lg font-semibold text-gray-900 mb-4" }, 'הוסף מרחב עבודה חדש'),
+                React.createElement('input', {
+                  type: "text",
+                  placeholder: "שם מרחב העבודה",
+                  value: newWorkspaceName,
+                  onChange: (e) => setNewWorkspaceName(e.target.value),
+                  className: "w-full border border-gray-300 rounded-md px-3 py-2 text-right mb-4",
+                  onKeyPress: (e) => e.key === 'Enter' && createWorkspace()
+                }),
+                React.createElement('div', { className: "flex justify-end space-x-reverse space-x-4" },
+                  React.createElement('button', {
+                    onClick: () => {
+                      setShowNewWorkspaceForm(false);
+                      setNewWorkspaceName('');
+                    },
+                    className: "px-4 py-2 text-gray-600 hover:text-gray-800"
+                  }, 'ביטול'),
+                  React.createElement('button', {
+                    onClick: createWorkspace,
+                    className: "bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                  }, 'יצירה')
                 )
               )
             ),

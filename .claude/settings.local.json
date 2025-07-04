@@ -14,7 +14,11 @@
       "mcp__playwright__browser_file_upload",
       "mcp__playwright__browser_handle_dialog",
       "mcp__playwright__browser_wait_for",
-      "mcp__playwright__browser_press_key"
+      "mcp__playwright__browser_press_key",
+      "Bash(rg:*)",
+      "Bash(grep:*)",
+      "Bash(rm:*)",
+      "mcp__playwright__browser_select_option"
     ],
     "deny": []
   }
