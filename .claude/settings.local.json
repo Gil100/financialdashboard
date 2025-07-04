@@ -18,7 +18,9 @@
       "Bash(rg:*)",
       "Bash(grep:*)",
       "Bash(rm:*)",
-      "mcp__playwright__browser_select_option"
+      "mcp__playwright__browser_select_option",
+      "Bash(python3:*)",
+      "mcp__playwright__browser_tab_new"
     ],
     "deny": []
   }

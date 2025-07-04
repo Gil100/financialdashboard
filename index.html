@@ -8,6 +8,7 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -19,7 +20,12 @@
     <div id="root"></div>
     
     <script type="text/babel">
-        const { useState, useMemo } = React;
+        const { useState, useMemo, useEffect } = React;
+        
+        // Initialize Supabase
+        const supabaseUrl = 'https://qjfkmfemxipaeslfwyld.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFqZmttZmVteGlwYWVzbGZ3eWxkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE2MTU3MzEsImV4cCI6MjA2NzE5MTczMX0.c-RIt6dWm4RPx6xV71RQM13fkEveIARFt4XVRPUovPY';
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
         // Simple icon component using text symbols (no external dependencies)
         const Icon = ({ name, className = "h-4 w-4" }) => {
           const iconMap = {
@@ -80,13 +86,213 @@
           }
         }
 
-        const FinancialDashboard = () => {
-          const [activeTab, setActiveTab] = useState('dashboard');
-          const [currentWorkspace, setCurrentWorkspace] = useState('muller');
-          const [workspaces, setWorkspaces] = useState([
-            { id: 'muller', name: 'Muller Refrigeration Systems Ltd.' },
-            { id: 'herman', name: 'Herman Project' }
+        // Authentication Component
+        const AuthComponent = () => {
+          const [isLogin, setIsLogin] = useState(true);
+          const [email, setEmail] = useState('');
+          const [password, setPassword] = useState('');
+          const [fullName, setFullName] = useState('');
+          const [loading, setLoading] = useState(false);
+          const [error, setError] = useState('');
+
+          const handleAuth = async (e) => {
+            e.preventDefault();
+            setLoading(true);
+            setError('');
+
+            try {
+              if (isLogin) {
+                const { data, error } = await supabase.auth.signInWithPassword({
+                  email,
+                  password,
+                });
+                if (error) throw error;
+              } else {
+                const { data, error } = await supabase.auth.signUp({
+                  email,
+                  password,
+                  options: {
+                    data: {
+                      full_name: fullName,
+                    }
+                  }
+                });
+                if (error) throw error;
+                if (data.user && !data.session) {
+                  setError('אנא בדוק את האימייל שלך לקישור האימות');
+                }
+              }
+            } catch (error) {
+              setError(error.message);
+            } finally {
+              setLoading(false);
+            }
+          };
+
+          return React.createElement('div', {
+            className: "min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center px-4"
+          }, [
+            React.createElement('div', {
+              className: "max-w-md w-full bg-white rounded-xl shadow-lg p-8",
+              key: "auth-container"
+            }, [
+              React.createElement('div', {
+                className: "text-center mb-8",
+                key: "header"
+              }, [
+                React.createElement('h1', {
+                  className: "text-3xl font-bold text-gray-900 mb-2",
+                  key: "title"
+                }, 'דשבורד פיננסי חכם'),
+                React.createElement('p', {
+                  className: "text-gray-600",
+                  key: "subtitle"
+                }, isLogin ? 'התחבר לחשבון שלך' : 'צור חשבון חדש')
+              ]),
+              
+              React.createElement('form', {
+                onSubmit: handleAuth,
+                className: "space-y-6",
+                key: "form"
+              }, [
+                !isLogin && React.createElement('div', {
+                  key: "fullname-field"
+                }, [
+                  React.createElement('label', {
+                    className: "block text-sm font-medium text-gray-700 mb-2",
+                    key: "fullname-label"
+                  }, 'שם מלא'),
+                  React.createElement('input', {
+                    type: "text",
+                    value: fullName,
+                    onChange: (e) => setFullName(e.target.value),
+                    className: "w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500",
+                    required: true,
+                    key: "fullname-input"
+                  })
+                ]),
+                
+                React.createElement('div', {
+                  key: "email-field"
+                }, [
+                  React.createElement('label', {
+                    className: "block text-sm font-medium text-gray-700 mb-2",
+                    key: "email-label"
+                  }, 'כתובת אימייל'),
+                  React.createElement('input', {
+                    type: "email",
+                    value: email,
+                    onChange: (e) => setEmail(e.target.value),
+                    className: "w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500",
+                    required: true,
+                    key: "email-input"
+                  })
+                ]),
+                
+                React.createElement('div', {
+                  key: "password-field"
+                }, [
+                  React.createElement('label', {
+                    className: "block text-sm font-medium text-gray-700 mb-2",
+                    key: "password-label"
+                  }, 'סיסמה'),
+                  React.createElement('input', {
+                    type: "password",
+                    value: password,
+                    onChange: (e) => setPassword(e.target.value),
+                    className: "w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500",
+                    required: true,
+                    minLength: 6,
+                    key: "password-input"
+                  })
+                ]),
+                
+                error && React.createElement('div', {
+                  className: "text-red-600 text-sm text-center",
+                  key: "error"
+                }, error),
+                
+                React.createElement('button', {
+                  type: "submit",
+                  disabled: loading,
+                  className: `w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white font-medium rounded-lg transition-colors ${loading ? 'cursor-not-allowed' : ''}`,
+                  key: "submit-button"
+                }, loading ? 'מתחבר...' : (isLogin ? 'התחבר' : 'צור חשבון')),
+                
+                React.createElement('div', {
+                  className: "text-center",
+                  key: "toggle"
+                }, [
+                  React.createElement('button', {
+                    type: "button",
+                    onClick: () => {
+                      setIsLogin(!isLogin);
+                      setError('');
+                    },
+                    className: "text-blue-600 hover:text-blue-800 font-medium",
+                    key: "toggle-button"
+                  }, isLogin ? 'עדיין אין לך חשבון? צור חשבון' : 'כבר יש לך חשבון? התחבר')
+                ])
+              ])
+            ])
           ]);
+        };
+
+        // Main App Component with Authentication
+        const App = () => {
+          const [user, setUser] = useState(null);
+          const [loading, setLoading] = useState(true);
+
+          useEffect(() => {
+            // Get initial session
+            supabase.auth.getSession().then(({ data: { session } }) => {
+              setUser(session?.user ?? null);
+              setLoading(false);
+            });
+
+            // Listen for auth changes
+            const { data: { subscription } } = supabase.auth.onAuthStateChange(
+              async (event, session) => {
+                setUser(session?.user ?? null);
+                setLoading(false);
+              }
+            );
+
+            return () => subscription.unsubscribe();
+          }, []);
+
+          if (loading) {
+            return React.createElement('div', {
+              className: "min-h-screen bg-gray-50 flex items-center justify-center"
+            }, [
+              React.createElement('div', {
+                className: "text-center",
+                key: "loading"
+              }, [
+                React.createElement('div', {
+                  className: "animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4",
+                  key: "spinner"
+                }),
+                React.createElement('p', {
+                  className: "text-gray-600",
+                  key: "loading-text"
+                }, 'טוען...')
+              ])
+            ]);
+          }
+
+          if (!user) {
+            return React.createElement(AuthComponent);
+          }
+
+          return React.createElement(FinancialDashboard, { user });
+        };
+
+        const FinancialDashboard = ({ user }) => {
+          const [activeTab, setActiveTab] = useState('dashboard');
+          const [currentWorkspace, setCurrentWorkspace] = useState(null);
+          const [workspaces, setWorkspaces] = useState([]);
+          const [isOnline, setIsOnline] = useState(navigator.onLine);
           
           // Always start with empty array - no automatic persistence
           const [projects, setProjects] = useState([]);
@@ -166,111 +372,275 @@
           }, [projects, selectedProject]);
 
           // Workspace management functions
-          const loadWorkspaceData = (workspaceId) => {
+          const loadWorkspaceData = async (workspaceId) => {
             try {
-              const data = localStorage.getItem(`workspace-${workspaceId}`);
-              if (data) {
-                const parsedData = JSON.parse(data);
-                setProjects(parsedData);
-              } else {
-                setProjects([]);
-              }
+              const { data, error } = await supabase
+                .from('projects')
+                .select('*')
+                .eq('workspace_id', workspaceId)
+                .order('created_at', { ascending: false });
+
+              if (error) throw error;
+              
+              // Convert database format to application format
+              const projectsData = data.map(project => ({
+                id: project.id,
+                orderDate: project.order_date,
+                clientName: project.client_name,
+                orderDetails: project.order_details,
+                transactionAmount: parseFloat(project.transaction_amount),
+                vatPercent: parseFloat(project.vat_percent),
+                totalPayment: parseFloat(project.total_payment),
+                projectReceipts: parseFloat(project.project_receipts),
+                remainingBalance: parseFloat(project.remaining_balance),
+                projectNotes: project.project_notes || '',
+                invoiceIssued: project.invoice_issued,
+                activationDate: project.activation_date
+              }));
+              
+              setProjects(projectsData);
             } catch (error) {
               console.error('Error loading workspace data:', error);
               setProjects([]);
             }
           };
 
-          const saveWorkspaceData = (workspaceId, projectsData) => {
+          const saveWorkspaceData = async (workspaceId, projectsData) => {
+            if (!workspaceId || !Array.isArray(projectsData)) return;
+            
             try {
-              localStorage.setItem(`workspace-${workspaceId}`, JSON.stringify(projectsData));
+              // Delete existing projects for this workspace
+              const { error: deleteError } = await supabase
+                .from('projects')
+                .delete()
+                .eq('workspace_id', workspaceId);
+
+              if (deleteError) throw deleteError;
+
+              // Insert new projects if any exist
+              if (projectsData.length > 0) {
+                const projectsToInsert = projectsData.map(project => ({
+                  id: project.id,
+                  workspace_id: workspaceId,
+                  order_date: project.orderDate,
+                  client_name: project.clientName,
+                  order_details: project.orderDetails,
+                  transaction_amount: project.transactionAmount,
+                  vat_percent: project.vatPercent,
+                  total_payment: project.totalPayment,
+                  project_receipts: project.projectReceipts,
+                  remaining_balance: project.remainingBalance,
+                  project_notes: project.projectNotes || '',
+                  invoice_issued: project.invoiceIssued,
+                  activation_date: project.activationDate
+                }));
+
+                const { error: insertError } = await supabase
+                  .from('projects')
+                  .insert(projectsToInsert);
+
+                if (insertError) throw insertError;
+              }
             } catch (error) {
               console.error('Error saving workspace data:', error);
             }
           };
 
-          const switchWorkspace = (workspaceId) => {
-            saveWorkspaceData(currentWorkspace, projects);
-            setCurrentWorkspace(workspaceId);
-            loadWorkspaceData(workspaceId);
-            
-            const config = {
-              workspaces,
-              currentWorkspace: workspaceId
-            };
-            localStorage.setItem('workspace-config', JSON.stringify(config));
-          };
-
-          const createWorkspace = () => {
-            if (!newWorkspaceName.trim()) return;
-            
-            const newId = Date.now().toString();
-            const newWorkspace = {
-              id: newId,
-              name: newWorkspaceName.trim()
-            };
-            
-            const updatedWorkspaces = [...workspaces, newWorkspace];
-            setWorkspaces(updatedWorkspaces);
-            
-            saveWorkspaceData(newId, []);
-            switchWorkspace(newId);
-            
-            setNewWorkspaceName('');
-            setShowNewWorkspaceForm(false);
-          };
-
-          // Initialize workspace data
-          React.useEffect(() => {
+          const switchWorkspace = async (workspaceId) => {
             try {
-              const config = localStorage.getItem('workspace-config');
-              if (config) {
-                const parsedConfig = JSON.parse(config);
-                setWorkspaces(parsedConfig.workspaces || workspaces);
-                setCurrentWorkspace(parsedConfig.currentWorkspace || 'muller');
-                loadWorkspaceData(parsedConfig.currentWorkspace || 'muller');
-              } else {
-                const mullerData = [
-                  {
-                    id: 1751535923514,
-                    orderDate: "2025-04-20",
-                    clientName: "רפת אל חטאב",
-                    orderDetails: "צ'ילר דמו",
-                    transactionAmount: 100000,
-                    vatPercent: 18,
-                    totalPayment: 118000,
-                    projectReceipts: 0,
-                    remainingBalance: 118000,
-                    projectNotes: "פריסה ל 4 צ'קים , צ'ק ראשון 10/10/25  - אלדד צריך לאסוף",
-                    invoiceIssued: false,
-                    activationDate: "2025-10-10"
-                  }
-                ];
-                
-                setProjects(mullerData);
-                saveWorkspaceData('muller', mullerData);
-                saveWorkspaceData('herman', []);
-                
-                const initialConfig = {
-                  workspaces: workspaces,
-                  currentWorkspace: 'muller'
-                };
-                localStorage.setItem('workspace-config', JSON.stringify(initialConfig));
+              // Save current workspace data before switching
+              if (currentWorkspace) {
+                await saveWorkspaceData(currentWorkspace, projects);
+              }
+              
+              setCurrentWorkspace(workspaceId);
+              await loadWorkspaceData(workspaceId);
+            } catch (error) {
+              console.error('Error switching workspace:', error);
+            }
+          };
+
+          const loadUserWorkspaces = async () => {
+            try {
+              const { data, error } = await supabase
+                .from('workspaces')
+                .select(`
+                  id,
+                  name,
+                  created_at,
+                  workspace_users!inner(role)
+                `)
+                .eq('workspace_users.user_id', user.id)
+                .order('created_at', { ascending: false });
+
+              if (error) throw error;
+
+              const workspacesData = data.map(workspace => ({
+                id: workspace.id,
+                name: workspace.name
+              }));
+
+              setWorkspaces(workspacesData);
+              
+              // Set first workspace as current if none selected
+              if (workspacesData.length > 0 && !currentWorkspace) {
+                const firstWorkspace = workspacesData[0];
+                setCurrentWorkspace(firstWorkspace.id);
+                await loadWorkspaceData(firstWorkspace.id);
               }
             } catch (error) {
-              console.error('Error initializing workspace:', error);
-              loadWorkspaceData('muller');
+              console.error('Error loading workspaces:', error);
+              setWorkspaces([]);
             }
-          }, []);
+          };
 
-          // Save workspace data whenever projects change
+          const createWorkspace = async () => {
+            if (!newWorkspaceName.trim()) return;
+            
+            try {
+              const { data, error } = await supabase
+                .from('workspaces')
+                .insert([
+                  {
+                    name: newWorkspaceName.trim(),
+                    created_by: user.id
+                  }
+                ])
+                .select()
+                .single();
+
+              if (error) throw error;
+
+              const newWorkspace = {
+                id: data.id,
+                name: data.name
+              };
+              
+              const updatedWorkspaces = [...workspaces, newWorkspace];
+              setWorkspaces(updatedWorkspaces);
+              
+              await switchWorkspace(data.id);
+              
+              setNewWorkspaceName('');
+              setShowNewWorkspaceForm(false);
+            } catch (error) {
+              console.error('Error creating workspace:', error);
+            }
+          };
+
+          // Initialize workspace data from Supabase
           React.useEffect(() => {
-            if (projects.length > 0 || currentWorkspace) {
-              saveWorkspaceData(currentWorkspace, projects);
+            if (user) {
+              loadUserWorkspaces();
             }
-          }, [projects, currentWorkspace]);
+          }, [user]);
 
-          const handleAddProject = () => {
+          // Real-time subscription for projects in current workspace
+          React.useEffect(() => {
+            if (!currentWorkspace || !user) return;
+
+            const subscription = supabase
+              .channel(`projects:workspace_id=eq.${currentWorkspace}`)
+              .on('postgres_changes', 
+                { 
+                  event: '*', 
+                  schema: 'public', 
+                  table: 'projects',
+                  filter: `workspace_id=eq.${currentWorkspace}`
+                }, 
+                (payload) => {
+                  console.log('Real-time update:', payload);
+                  
+                  switch (payload.eventType) {
+                    case 'INSERT':
+                      const newProject = {
+                        id: payload.new.id,
+                        orderDate: payload.new.order_date,
+                        clientName: payload.new.client_name,
+                        orderDetails: payload.new.order_details,
+                        transactionAmount: parseFloat(payload.new.transaction_amount),
+                        vatPercent: parseFloat(payload.new.vat_percent),
+                        totalPayment: parseFloat(payload.new.total_payment),
+                        projectReceipts: parseFloat(payload.new.project_receipts),
+                        remainingBalance: parseFloat(payload.new.remaining_balance),
+                        projectNotes: payload.new.project_notes || '',
+                        invoiceIssued: payload.new.invoice_issued,
+                        activationDate: payload.new.activation_date
+                      };
+                      setProjects(prev => {
+                        // Avoid duplicates
+                        if (prev.find(p => p.id === newProject.id)) return prev;
+                        return [...prev, newProject];
+                      });
+                      break;
+                      
+                    case 'UPDATE':
+                      const updatedProject = {
+                        id: payload.new.id,
+                        orderDate: payload.new.order_date,
+                        clientName: payload.new.client_name,
+                        orderDetails: payload.new.order_details,
+                        transactionAmount: parseFloat(payload.new.transaction_amount),
+                        vatPercent: parseFloat(payload.new.vat_percent),
+                        totalPayment: parseFloat(payload.new.total_payment),
+                        projectReceipts: parseFloat(payload.new.project_receipts),
+                        remainingBalance: parseFloat(payload.new.remaining_balance),
+                        projectNotes: payload.new.project_notes || '',
+                        invoiceIssued: payload.new.invoice_issued,
+                        activationDate: payload.new.activation_date
+                      };
+                      setProjects(prev => prev.map(p => 
+                        p.id === updatedProject.id ? updatedProject : p
+                      ));
+                      break;
+                      
+                    case 'DELETE':
+                      setProjects(prev => prev.filter(p => p.id !== payload.old.id));
+                      break;
+                  }
+                }
+              )
+              .subscribe();
+
+            return () => {
+              supabase.removeChannel(subscription);
+            };
+          }, [currentWorkspace, user]);
+
+          // Monitor online/offline state
+          React.useEffect(() => {
+            const handleOnline = () => {
+              setIsOnline(true);
+              console.log('Back online - syncing data...');
+              // Reload current workspace data when coming back online
+              if (currentWorkspace) {
+                loadWorkspaceData(currentWorkspace);
+              }
+            };
+            
+            const handleOffline = () => {
+              setIsOnline(false);
+              console.log('Gone offline - operations will be queued');
+            };
+
+            window.addEventListener('online', handleOnline);
+            window.addEventListener('offline', handleOffline);
+
+            return () => {
+              window.removeEventListener('online', handleOnline);
+              window.removeEventListener('offline', handleOffline);
+            };
+          }, [currentWorkspace]);
+
+          // Note: Direct Supabase operations now handle persistence
+          // No need for debounced saving anymore
+
+          const handleAddProject = async () => {
+            if (!currentWorkspace) {
+              alert('אנא בחר מרחב עבודה');
+              return;
+            }
+
             // Fix: Add validation and safe parsing
             const transactionAmount = parseFloat(newProject.transactionAmount) || 0;
             const vatPercent = parseFloat(newProject.vatPercent) || 17;
@@ -284,32 +654,66 @@
             const totalPayment = transactionAmount * (1 + vatPercent / 100);
             const remainingBalance = totalPayment - projectReceipts;
 
-            const project = {
-              id: Date.now(),
-              ...newProject,
-              transactionAmount,
-              vatPercent,
-              totalPayment,
-              projectReceipts,
-              remainingBalance
-            };
+            try {
+              const { data, error } = await supabase
+                .from('projects')
+                .insert([
+                  {
+                    workspace_id: currentWorkspace,
+                    order_date: newProject.orderDate,
+                    client_name: newProject.clientName,
+                    order_details: newProject.orderDetails,
+                    transaction_amount: transactionAmount,
+                    vat_percent: vatPercent,
+                    total_payment: totalPayment,
+                    project_receipts: projectReceipts,
+                    remaining_balance: remainingBalance,
+                    project_notes: newProject.projectNotes || '',
+                    invoice_issued: newProject.invoiceIssued || false,
+                    activation_date: newProject.activationDate || null
+                  }
+                ])
+                .select()
+                .single();
 
-            setProjects([...projects, project]);
-            setNewProject({
-              orderDate: '',
-              clientName: '',
-              orderDetails: '',
-              transactionAmount: '',
-              vatPercent: 17,
-              projectReceipts: '',
-              projectNotes: '',
-              invoiceIssued: false,
-              activationDate: ''
-            });
-            setShowAddForm(false);
+              if (error) throw error;
+
+              // Convert back to application format and add to local state
+              const newProjectData = {
+                id: data.id,
+                orderDate: data.order_date,
+                clientName: data.client_name,
+                orderDetails: data.order_details,
+                transactionAmount: parseFloat(data.transaction_amount),
+                vatPercent: parseFloat(data.vat_percent),
+                totalPayment: parseFloat(data.total_payment),
+                projectReceipts: parseFloat(data.project_receipts),
+                remainingBalance: parseFloat(data.remaining_balance),
+                projectNotes: data.project_notes || '',
+                invoiceIssued: data.invoice_issued,
+                activationDate: data.activation_date
+              };
+
+              setProjects([...projects, newProjectData]);
+              setNewProject({
+                orderDate: '',
+                clientName: '',
+                orderDetails: '',
+                transactionAmount: '',
+                vatPercent: 17,
+                projectReceipts: '',
+                projectNotes: '',
+                invoiceIssued: false,
+                activationDate: ''
+              });
+              setShowAddForm(false);
+            } catch (error) {
+              console.error('Error adding project:', error);
+              alert('שגיאה בהוספת פרויקט');
+            }
           };
 
-          const handleEditProject = (id, updatedProject) => {
+          const handleEditProject = async (id, updatedProject) => {
             // Fix: Add safe parsing
             const transactionAmount = parseFloat(updatedProject.transactionAmount) || 0;
             const vatPercent = parseFloat(updatedProject.vatPercent) || 17;
@@ -318,16 +722,63 @@
             const totalPayment = transactionAmount * (1 + vatPercent / 100);
             const remainingBalance = totalPayment - projectReceipts;
 
-            setProjects(projects.map(p => 
-              p.id === id 
-                ? { ...updatedProject, id, transactionAmount, vatPercent, projectReceipts, totalPayment, remainingBalance }
-                : p
-            ));
-            setIsEditing(null);
+            try {
+              const { data, error } = await supabase
+                .from('projects')
+                .update({
+                  order_date: updatedProject.orderDate,
+                  client_name: updatedProject.clientName,
+                  order_details: updatedProject.orderDetails,
+                  transaction_amount: transactionAmount,
+                  vat_percent: vatPercent,
+                  total_payment: totalPayment,
+                  project_receipts: projectReceipts,
+                  remaining_balance: remainingBalance,
+                  project_notes: updatedProject.projectNotes || '',
+                  invoice_issued: updatedProject.invoiceIssued || false,
+                  activation_date: updatedProject.activationDate || null
+                })
+                .eq('id', id)
+                .select()
+                .single();
+
+              if (error) throw error;
+
+              // Update local state with the updated project
+              setProjects(projects.map(p => 
+                p.id === id 
+                  ? { 
+                      ...updatedProject, 
+                      id, 
+                      transactionAmount, 
+                      vatPercent, 
+                      projectReceipts, 
+                      totalPayment, 
+                      remainingBalance 
+                    }
+                  : p
+              ));
+              setIsEditing(null);
+            } catch (error) {
+              console.error('Error updating project:', error);
+              alert('שגיאה בעדכון פרויקט');
+            }
           };
 
-          const handleDeleteProject = (id) => {
-            setProjects(projects.filter(p => p.id !== id));
+          const handleDeleteProject = async (id) => {
+            try {
+              const { error } = await supabase
+                .from('projects')
+                .delete()
+                .eq('id', id);
+
+              if (error) throw error;
+
+              setProjects(projects.filter(p => p.id !== id));
+            } catch (error) {
+              console.error('Error deleting project:', error);
+              alert('שגיאה במחיקת פרויקט');
+            }
           };
           
           // Import projects from JSON file
@@ -419,15 +870,27 @@
           };
           
           // Clear all projects (start fresh)
-          const handleClearDatabase = () => {
+          const handleClearDatabase = async () => {
             if (projects.length === 0) {
               alert('המסד נתונים כבר ריק');
               return;
             }
             
             if (confirm('האם אתה בטוח שברצונך למחוק את כל הפרויקטים? פעולה זו אינה ניתנת לביטול.')) {
-              setProjects([]);
-              alert('מסד הנתונים נמחק בהצלחה');
+              try {
+                const { error } = await supabase
+                  .from('projects')
+                  .delete()
+                  .eq('workspace_id', currentWorkspace);
+
+                if (error) throw error;
+
+                setProjects([]);
+                alert('מסד הנתונים נמחק בהצלחה');
+              } catch (error) {
+                console.error('Error clearing database:', error);
+                alert('שגיאה במחיקת מסד הנתונים');
+              }
             }
           };
 
@@ -639,7 +1102,33 @@
                     )
                   ),
                   
-                  React.createElement('div', { className: "flex space-x-reverse space-x-4" },
+                  React.createElement('div', { className: "flex items-center space-x-reverse space-x-4" },
+                    React.createElement('div', {
+                      className: `flex items-center space-x-reverse space-x-2 px-2 py-1 rounded-lg text-xs ${
+                        isOnline 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-red-100 text-red-800'
+                      }`,
+                      title: isOnline ? 'מחובר לרשת' : 'לא מחובר לרשת'
+                    }, [
+                      React.createElement('div', {
+                        className: `w-2 h-2 rounded-full ${isOnline ? 'bg-green-500' : 'bg-red-500'}`,
+                        key: "status-dot"
+                      }),
+                      React.createElement('span', {
+                        key: "status-text"
+                      }, isOnline ? 'מחובר' : 'לא מחובר')
+                    ]),
+                    
+                    React.createElement('button', {
+                      onClick: async () => {
+                        const { error } = await supabase.auth.signOut();
+                        if (error) console.error('Error logging out:', error);
+                      },
+                      className: "px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-50",
+                      title: "התנתק"
+                    }, 'התנתק'),
+                    
                     React.createElement('button', {
                       onClick: () => setActiveTab('dashboard'),
                       className: `px-4 py-2 rounded-lg font-medium ${
@@ -999,7 +1488,7 @@
         };
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(React.createElement(ErrorBoundary, null, React.createElement(FinancialDashboard)));
+        root.render(React.createElement(ErrorBoundary, null, React.createElement(App)));
     </script>
 </body>
 </html>
