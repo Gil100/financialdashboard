@@ -100,7 +100,8 @@
             transactionAmount: '',
             vatPercent: 17,
             projectReceipts: '',
-            projectNotes: ''
+            projectNotes: '',
+            invoiceIssued: false
           });
           const [showAddForm, setShowAddForm] = useState(false);
           const [searchTerm, setSearchTerm] = useState('');
@@ -127,6 +128,11 @@
             const completionRate = totalPayment > 0 ? (totalReceipts / totalPayment) * 100 : 0;
             const completedProjects = filteredProjects.filter(p => p.remainingBalance === 0).length;
             const inProgressProjects = filteredProjects.filter(p => p.remainingBalance > 0).length;
+            
+            // Invoice statistics
+            const invoicedProjects = filteredProjects.filter(p => p.invoiceIssued === true).length;
+            const uninvoicedProjects = filteredProjects.filter(p => p.invoiceIssued === false).length;
+            const invoiceRate = filteredProjects.length > 0 ? (invoicedProjects / filteredProjects.length) * 100 : 0;
 
             return {
               totalTransactionAmount,
@@ -137,7 +143,10 @@
               completionRate,
               completedProjects,
               inProgressProjects,
-              totalProjects: filteredProjects.length
+              totalProjects: filteredProjects.length,
+              invoicedProjects,
+              uninvoicedProjects,
+              invoiceRate
             };
           }, [projects, selectedProject]);
 
@@ -217,7 +226,8 @@
                     totalPayment: 118000,
                     projectReceipts: 0,
                     remainingBalance: 118000,
-                    projectNotes: "פריסה ל 4 צ'קים , צ'ק ראשון 10/10/25  - אלדד צריך לאסוף"
+                    projectNotes: "פריסה ל 4 צ'קים , צ'ק ראשון 10/10/25  - אלדד צריך לאסוף",
+                    invoiceIssued: false
                   }
                 ];
                 
@@ -276,7 +286,8 @@
               transactionAmount: '',
               vatPercent: 17,
               projectReceipts: '',
-              projectNotes: ''
+              projectNotes: '',
+              invoiceIssued: false
             });
             setShowAddForm(false);
           };
@@ -343,7 +354,8 @@
                     totalPayment,
                     projectReceipts,
                     remainingBalance,
-                    projectNotes: project.projectNotes || ''
+                    projectNotes: project.projectNotes || '',
+                    invoiceIssued: typeof project.invoiceIssued === 'boolean' ? project.invoiceIssued : false
                   };
                 });
                 
@@ -501,6 +513,14 @@
                     className: "w-full border border-gray-300 rounded px-2 py-1 text-right"
                   })
                 ),
+                React.createElement('td', { className: "px-6 py-4 text-center" },
+                  React.createElement('input', {
+                    type: "checkbox",
+                    checked: editData.invoiceIssued || false,
+                    onChange: (e) => setEditData({...editData, invoiceIssued: e.target.checked}),
+                    className: "rounded border-gray-300"
+                  })
+                ),
                 React.createElement('td', { className: "px-6 py-4" },
                   React.createElement('div', { className: "flex space-x-reverse space-x-2" },
                     React.createElement('button', {
@@ -528,6 +548,14 @@
                 className: `px-6 py-4 whitespace-nowrap text-sm font-medium ${project.remainingBalance === 0 ? 'text-green-600' : 'text-red-600'}`
               }, formatCurrency(project.remainingBalance)),
               React.createElement('td', { className: "px-6 py-4 text-sm text-gray-900 text-right max-w-xs truncate" }, project.projectNotes),
+              React.createElement('td', { className: "px-6 py-4 text-center" },
+                React.createElement('input', {
+                  type: "checkbox",
+                  checked: project.invoiceIssued || false,
+                  readOnly: true,
+                  className: "rounded border-gray-300"
+                })
+              ),
               React.createElement('td', { className: "px-6 py-4 whitespace-nowrap" },
                 React.createElement('div', { className: "flex space-x-reverse space-x-2" },
                   React.createElement('button', {
@@ -683,6 +711,13 @@
                     iconName: "trending-up",
                     color: "#F59E0B",
                     subtitle: `${dashboardData.completedProjects} מתוך ${dashboardData.totalProjects} פרויקטים`
+                  }),
+                  React.createElement(KPICard, {
+                    title: "חשבוניות הונפקו",
+                    value: `${dashboardData.invoiceRate.toFixed(1)}%`,
+                    iconName: "receipt",
+                    color: "#059669",
+                    subtitle: `${dashboardData.invoicedProjects} מתוך ${dashboardData.totalProjects} פרויקטים`
                   })
                 ),
 
@@ -820,7 +855,17 @@
                       value: newProject.projectNotes,
                       onChange: (e) => setNewProject({...newProject, projectNotes: e.target.value}),
                       className: "border border-gray-300 rounded-md px-3 py-2 text-right md:col-span-2"
-                    })
+                    }),
+                    React.createElement('div', { className: "flex items-center space-x-reverse space-x-2" },
+                      React.createElement('input', {
+                        type: "checkbox",
+                        id: "invoiceIssued",
+                        checked: newProject.invoiceIssued,
+                        onChange: (e) => setNewProject({...newProject, invoiceIssued: e.target.checked}),
+                        className: "rounded border-gray-300"
+                      }),
+                      React.createElement('label', { htmlFor: "invoiceIssued", className: "text-sm font-medium text-gray-700" }, 'חשבונית הונפקה')
+                    )
                   ),
                   React.createElement('div', { className: "flex justify-end space-x-reverse space-x-4 mt-4" },
                     React.createElement('button', {
@@ -872,6 +917,7 @@
                           React.createElement('th', { className: "px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider" }, 'תקבולים'),
                           React.createElement('th', { className: "px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider" }, 'יתרה'),
                           React.createElement('th', { className: "px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider" }, 'הערות'),
+                          React.createElement('th', { className: "px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider" }, 'חשבונית'),
                           React.createElement('th', { className: "px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider" }, 'פעולות')
                         )
                       ),
