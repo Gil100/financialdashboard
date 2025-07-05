@@ -462,31 +462,85 @@
 
           const loadUserWorkspaces = async () => {
             try {
-              const { data, error } = await supabase
+              // First get workspace IDs for this user
+              const { data: userWorkspaces, error: userError } = await supabase
+                .from('workspace_users')
+                .select('workspace_id, role')
+                .eq('user_id', user.id);
+
+              if (userError) throw userError;
+
+              if (!userWorkspaces || userWorkspaces.length === 0) {
+                // No workspaces found, will trigger auto-creation
+                setWorkspaces([]);
+                return;
+              }
+
+              // Get workspace details
+              const workspaceIds = userWorkspaces.map(uw => uw.workspace_id);
+              const { data: workspacesData, error: workspacesError } = await supabase
                 .from('workspaces')
-                .select(`
-                  id,
-                  name,
-                  created_at,
-                  workspace_users!inner(role)
-                `)
-                .eq('workspace_users.user_id', user.id)
+                .select('id, name, created_at')
+                .in('id', workspaceIds)
                 .order('created_at', { ascending: false });
 
-              if (error) throw error;
+              if (workspacesError) throw workspacesError;
 
-              const workspacesData = data.map(workspace => ({
+              const formattedWorkspaces = workspacesData.map(workspace => ({
                 id: workspace.id,
                 name: workspace.name
               }));
 
-              setWorkspaces(workspacesData);
+              setWorkspaces(formattedWorkspaces);
               
               // Set first workspace as current if none selected
-              if (workspacesData.length > 0 && !currentWorkspace) {
-                const firstWorkspace = workspacesData[0];
+              if (formattedWorkspaces.length > 0 && !currentWorkspace) {
+                const firstWorkspace = formattedWorkspaces[0];
                 setCurrentWorkspace(firstWorkspace.id);
                 await loadWorkspaceData(firstWorkspace.id);
+              } else if (formattedWorkspaces.length === 0) {
+                // Create a default workspace for new users
+                try {
+                  const { data: workspaceData, error: workspaceError } = await supabase
+                    .from('workspaces')
+                    .insert([
+                      {
+                        name: 'מרחב עבודה ראשי',
+                        created_by: user.id
+                      }
+                    ])
+                    .select()
+                    .single();
+
+                  if (workspaceError) throw workspaceError;
+
+                  // Add the creator to workspace_users (use upsert to avoid duplicates)
+                  const { error: userError } = await supabase
+                    .from('workspace_users')
+                    .upsert([
+                      {
+                        workspace_id: workspaceData.id,
+                        user_id: user.id,
+                        role: 'owner'
+                      }
+                    ], {
+                      onConflict: 'workspace_id,user_id'
+                    });
+
+                  if (userError) throw userError;
+
+                  const defaultWorkspace = {
+                    id: workspaceData.id,
+                    name: workspaceData.name
+                  };
+                  
+                  setWorkspaces([defaultWorkspace]);
+                  setCurrentWorkspace(workspaceData.id);
+                  await loadWorkspaceData(workspaceData.id);
+                } catch (createError) {
+                  console.error('Error creating default workspace:', createError);
+                  setWorkspaces([]);
+                }
               }
             } catch (error) {
               console.error('Error loading workspaces:', error);
@@ -498,7 +552,8 @@
             if (!newWorkspaceName.trim()) return;
             
             try {
-              const { data, error } = await supabase
+              // First create the workspace
+              const { data: workspaceData, error: workspaceError } = await supabase
                 .from('workspaces')
                 .insert([
                   {
@@ -509,22 +564,42 @@
                 .select()
                 .single();
 
-              if (error) throw error;
+              if (workspaceError) throw workspaceError;
+
+              // Then add the creator to workspace_users (use upsert to avoid duplicates)
+              const { error: userError } = await supabase
+                .from('workspace_users')
+                .upsert([
+                  {
+                    workspace_id: workspaceData.id,
+                    user_id: user.id,
+                    role: 'owner'
+                  }
+                ], {
+                  onConflict: 'workspace_id,user_id'
+                });
+
+              if (userError) {
+                // If adding user fails, clean up the workspace
+                await supabase.from('workspaces').delete().eq('id', workspaceData.id);
+                throw userError;
+              }
 
               const newWorkspace = {
-                id: data.id,
-                name: data.name
+                id: workspaceData.id,
+                name: workspaceData.name
               };
               
               const updatedWorkspaces = [...workspaces, newWorkspace];
               setWorkspaces(updatedWorkspaces);
               
-              await switchWorkspace(data.id);
+              await switchWorkspace(workspaceData.id);
               
               setNewWorkspaceName('');
               setShowNewWorkspaceForm(false);
             } catch (error) {
               console.error('Error creating workspace:', error);
+              alert('שגיאה ביצירת מרחב עבודה: ' + error.message);
             }
           };
 
@@ -782,7 +857,7 @@
           };
           
           // Import projects from JSON file
-          const handleImportProjects = (event) => {
+          const handleImportProjects = async (event) => {
             const file = event.target.files[0];
             if (!file) return;
             
@@ -790,7 +865,7 @@
             setImportError('');
             
             const reader = new FileReader();
-            reader.onload = (e) => {
+            reader.onload = async (e) => {
               try {
                 const importedData = JSON.parse(e.target.result);
                 
@@ -813,7 +888,7 @@
                   const remainingBalance = totalPayment - projectReceipts;
                   
                   return {
-                    id: project.id || Date.now() + Math.random(),
+                    // Let Supabase auto-generate UUID for id field
                     orderDate: project.orderDate || new Date().toISOString().split('T')[0],
                     clientName: project.clientName,
                     orderDetails: project.orderDetails,
@@ -824,13 +899,60 @@
                     remainingBalance,
                     projectNotes: project.projectNotes || '',
                     invoiceIssued: typeof project.invoiceIssued === 'boolean' ? project.invoiceIssued : false,
-                    activationDate: project.activationDate || ''
+                    activationDate: project.activationDate || null
                   };
                 });
                 
-                setProjects(validatedProjects);
-                const currentWorkspaceName = workspaces.find(w => w.id === currentWorkspace)?.name || 'workspace';
-                alert(`יובאו בהצלחה ${validatedProjects.length} פרויקטים למרחב העבודה "${currentWorkspaceName}"`);
+                // Save validated projects to Supabase
+                if (currentWorkspace && validatedProjects.length > 0) {
+                  try {
+                    // First clear existing projects in this workspace
+                    const { error: deleteError } = await supabase
+                      .from('projects')
+                      .delete()
+                      .eq('workspace_id', currentWorkspace);
+
+                    if (deleteError) throw deleteError;
+
+                    // Insert new projects (let Supabase auto-generate UUIDs)
+                    const projectsToInsert = validatedProjects.map(project => ({
+                      workspace_id: currentWorkspace,
+                      order_date: project.orderDate,
+                      client_name: project.clientName,
+                      order_details: project.orderDetails,
+                      transaction_amount: project.transactionAmount,
+                      vat_percent: project.vatPercent,
+                      total_payment: project.totalPayment,
+                      project_receipts: project.projectReceipts,
+                      remaining_balance: project.remainingBalance,
+                      project_notes: project.projectNotes || '',
+                      invoice_issued: project.invoiceIssued,
+                      activation_date: project.activationDate
+                    }));
+
+                    const { error: insertError } = await supabase
+                      .from('projects')
+                      .insert(projectsToInsert);
+
+                    if (insertError) throw insertError;
+
+                    // Reload projects from Supabase to get proper IDs
+                    await loadWorkspaceData(currentWorkspace);
+                    const currentWorkspaceName = workspaces.find(w => w.id === currentWorkspace)?.name || 'workspace';
+                    alert(`יובאו בהצלחה ${validatedProjects.length} פרויקטים למרחב העבודה "${currentWorkspaceName}" ונשמרו למסד הנתונים`);
+                  } catch (supabaseError) {
+                    console.error('Error saving imported projects to Supabase:', supabaseError);
+                    alert(`שגיאה בשמירת הפרויקטים למסד הנתונים: ${supabaseError.message}`);
+                  }
+                } else {
+                  // No workspace selected - generate temporary IDs for display
+                  const projectsWithTempIds = validatedProjects.map((project, index) => ({
+                    ...project,
+                    id: `temp_${Date.now()}_${index}`
+                  }));
+                  setProjects(projectsWithTempIds);
+                  alert(`יובאו ${validatedProjects.length} פרויקטים (לא נשמרו למסד הנתונים - אין מרחב עבודה נבחר)`);
+                }
                 
               } catch (error) {
                 setImportError(error.message);
@@ -1086,10 +1208,11 @@
                     React.createElement('div', { className: "flex items-center space-x-reverse space-x-3 bg-gray-50 rounded-lg p-2" },
                       React.createElement(Icon, { name: 'database', className: "h-5 w-5 text-gray-600" }),
                       React.createElement('select', {
-                        value: currentWorkspace,
+                        value: currentWorkspace || '',
                         onChange: (e) => switchWorkspace(e.target.value),
                         className: "bg-transparent border-none outline-none text-sm font-medium text-gray-700 cursor-pointer"
                       }, 
+                        !currentWorkspace && React.createElement('option', { value: '', disabled: true }, 'טוען מרחבי עבודה...'),
                         workspaces.map(workspace => 
                           React.createElement('option', { key: workspace.id, value: workspace.id }, workspace.name)
                         )

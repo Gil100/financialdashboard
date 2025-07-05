@@ -20,7 +20,13 @@
       "Bash(rm:*)",
       "mcp__playwright__browser_select_option",
       "Bash(python3:*)",
-      "mcp__playwright__browser_tab_new"
+      "mcp__playwright__browser_tab_new",
+      "mcp__filesystem__read_file",
+      "mcp__playwright__browser_install",
+      "Bash(pkill:*)",
+      "Bash(true)",
+      "mcp__playwright__browser_tab_close",
+      "Bash(sed:*)"
     ],
     "deny": []
   }
