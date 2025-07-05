@@ -244,15 +244,29 @@
           const [loading, setLoading] = useState(true);
 
           useEffect(() => {
-            // Get initial session
-            supabase.auth.getSession().then(({ data: { session } }) => {
-              setUser(session?.user ?? null);
+            // Get initial session with error handling
+            supabase.auth.getSession().then(({ data: { session }, error }) => {
+              if (error) {
+                console.warn('Session error:', error);
+                // Clear any invalid tokens
+                supabase.auth.signOut();
+                setUser(null);
+              } else {
+                setUser(session?.user ?? null);
+              }
+              setLoading(false);
+            }).catch((error) => {
+              console.warn('Session retrieval failed:', error);
+              // Clear any invalid tokens and set user to null
+              supabase.auth.signOut();
+              setUser(null);
               setLoading(false);
             });
 
             // Listen for auth changes
             const { data: { subscription } } = supabase.auth.onAuthStateChange(
               async (event, session) => {
+                console.log('Auth state change:', event, session?.user?.email || 'no user');
                 setUser(session?.user ?? null);
                 setLoading(false);
               }
@@ -367,7 +381,122 @@
               .sort((a, b) => b - a);
             const latestActivationDate = activationDates.length > 0 ? activationDates[0] : null;
 
-            // Chart data calculations
+            // Advanced Financial Analytics
+            
+            // 1. Cash Flow Trends - Monthly revenue patterns with forecasting
+            const cashFlowByMonth = {};
+            const receiptsByMonth = {};
+            
+            filteredProjects.forEach(p => {
+              if (p.orderDate) {
+                const orderMonth = new Date(p.orderDate).toLocaleDateString('he-IL', { year: 'numeric', month: 'long' });
+                cashFlowByMonth[orderMonth] = (cashFlowByMonth[orderMonth] || 0) + p.totalPayment;
+              }
+              
+              // For collection velocity, we'll use activation date as proxy for when money started coming in
+              if (p.activationDate && p.projectReceipts > 0) {
+                const receiptMonth = new Date(p.activationDate).toLocaleDateString('he-IL', { year: 'numeric', month: 'long' });
+                receiptsByMonth[receiptMonth] = (receiptsByMonth[receiptMonth] || 0) + p.projectReceipts;
+              }
+            });
+
+            const monthlyRevenueData = Object.entries(cashFlowByMonth)
+              .map(([month, value]) => ({ label: month, value, type: 'actual' }))
+              .sort((a, b) => new Date(a.label) - new Date(b.label));
+
+            const monthlyReceiptsData = Object.entries(receiptsByMonth)
+              .map(([month, value]) => ({ label: month, value, type: 'actual' }))
+              .sort((a, b) => new Date(a.label) - new Date(b.label));
+
+            // Simple trend calculation for forecasting
+            const last6MonthsRevenue = monthlyRevenueData.slice(-6);
+            const avgMonthlyRevenue = last6MonthsRevenue.length > 0 
+              ? last6MonthsRevenue.reduce((sum, m) => sum + m.value, 0) / last6MonthsRevenue.length 
+              : 0;
+            
+            const last6MonthsReceipts = monthlyReceiptsData.slice(-6);
+            const avgMonthlyReceipts = last6MonthsReceipts.length > 0 
+              ? last6MonthsReceipts.reduce((sum, m) => sum + m.value, 0) / last6MonthsReceipts.length 
+              : 0;
+
+            // 2. Collection Velocity Analysis
+            const projectsWithDates = filteredProjects.filter(p => 
+              p.orderDate && p.activationDate && p.projectReceipts > 0
+            );
+            
+            const collectionVelocities = projectsWithDates.map(p => {
+              const orderDate = new Date(p.orderDate);
+              const activationDate = new Date(p.activationDate);
+              const daysToFirstPayment = Math.abs(activationDate - orderDate) / (1000 * 60 * 60 * 24);
+              const collectionRate = p.projectReceipts / p.totalPayment;
+              
+              return {
+                clientName: p.clientName,
+                daysToFirstPayment,
+                collectionRate,
+                totalValue: p.totalPayment,
+                collectedValue: p.projectReceipts,
+                remainingValue: p.remainingBalance
+              };
+            });
+
+            const avgDaysToFirstPayment = collectionVelocities.length > 0 
+              ? collectionVelocities.reduce((sum, cv) => sum + cv.daysToFirstPayment, 0) / collectionVelocities.length 
+              : 0;
+
+            const avgCollectionRate = collectionVelocities.length > 0 
+              ? collectionVelocities.reduce((sum, cv) => sum + cv.collectionRate, 0) / collectionVelocities.length * 100
+              : 0;
+
+            // 3. Project Pipeline Value by stages
+            const pipelineStages = {
+              'לא התחיל': filteredProjects.filter(p => !p.activationDate && p.remainingBalance === p.totalPayment),
+              'בתהליך': filteredProjects.filter(p => p.activationDate && p.remainingBalance > 0 && p.remainingBalance < p.totalPayment),
+              'הושלם': filteredProjects.filter(p => p.remainingBalance === 0),
+              'איחור בתשלום': filteredProjects.filter(p => {
+                if (!p.activationDate || p.remainingBalance === 0) return false;
+                const daysSinceActivation = (new Date() - new Date(p.activationDate)) / (1000 * 60 * 60 * 24);
+                return daysSinceActivation > 90 && p.remainingBalance > 0; // More than 90 days overdue
+              })
+            };
+
+            const pipelineData = Object.entries(pipelineStages).map(([stage, projects]) => ({
+              label: stage,
+              value: projects.reduce((sum, p) => sum + p.totalPayment, 0),
+              count: projects.length,
+              remainingValue: projects.reduce((sum, p) => sum + p.remainingBalance, 0)
+            }));
+
+            // 4. Seasonal Analysis - Quarter by Quarter
+            const quarterlyData = {};
+            filteredProjects.forEach(p => {
+              if (p.orderDate) {
+                const date = new Date(p.orderDate);
+                const year = date.getFullYear();
+                const quarter = Math.floor(date.getMonth() / 3) + 1;
+                const key = `${year} רבעון ${quarter}`;
+                
+                if (!quarterlyData[key]) {
+                  quarterlyData[key] = { orders: 0, revenue: 0, projects: 0 };
+                }
+                quarterlyData[key].orders += p.transactionAmount;
+                quarterlyData[key].revenue += p.totalPayment;
+                quarterlyData[key].projects += 1;
+              }
+            });
+
+            const seasonalTrends = Object.entries(quarterlyData)
+              .map(([quarter, data]) => ({
+                label: quarter,
+                orders: data.orders,
+                revenue: data.revenue,
+                projects: data.projects,
+                avgProjectValue: data.projects > 0 ? data.revenue / data.projects : 0
+              }))
+              .sort((a, b) => a.label.localeCompare(b.label))
+              .slice(-8); // Last 8 quarters
+
+            // Chart data calculations (existing)
             const topProjectsByValue = filteredProjects
               .sort((a, b) => b.totalPayment - a.totalPayment)
               .slice(0, 5)
@@ -416,7 +545,17 @@
               latestActivationDate,
               topProjectsByValue,
               monthlyData,
-              outstandingPayments
+              outstandingPayments,
+              // Advanced Analytics Data
+              monthlyRevenueData,
+              monthlyReceiptsData,
+              avgMonthlyRevenue,
+              avgMonthlyReceipts,
+              collectionVelocities,
+              avgDaysToFirstPayment,
+              avgCollectionRate,
+              pipelineData,
+              seasonalTrends
             };
           }, [projects, selectedProject]);
 
@@ -517,7 +656,10 @@
                 .select('workspace_id, role')
                 .eq('user_id', user.id);
 
-              if (userError) throw userError;
+              if (userError) {
+                console.error('Error loading user workspaces:', userError);
+                throw userError;
+              }
 
               if (!userWorkspaces || userWorkspaces.length === 0) {
                 // No workspaces found, will trigger auto-creation
@@ -655,7 +797,11 @@
           // Initialize workspace data from Supabase
           React.useEffect(() => {
             if (user) {
-              loadUserWorkspaces();
+              loadUserWorkspaces().catch(error => {
+                console.error('Failed to load user workspaces:', error);
+                // Set empty workspaces on error to show user can create one
+                setWorkspaces([]);
+              });
             }
           }, [user]);
 
@@ -1765,6 +1911,38 @@
                   })
                 ),
 
+                // Enhanced KPI Cards for Financial Analytics
+                React.createElement('div', { className: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-8" },
+                  React.createElement(KPICard, {
+                    title: "ממוצע הכנסות חודשיות",
+                    value: formatCurrency(dashboardData.avgMonthlyRevenue),
+                    iconName: "trending-up",
+                    color: "#3B82F6",
+                    subtitle: "על בסיס 6 חודשים אחרונים"
+                  }),
+                  React.createElement(KPICard, {
+                    title: "ממוצע ימים לתשלום ראשון",
+                    value: `${Math.round(dashboardData.avgDaysToFirstPayment)} ימים`,
+                    iconName: "trending-up",
+                    color: "#10B981",
+                    subtitle: "מהזמנה עד הפעלה"
+                  }),
+                  React.createElement(KPICard, {
+                    title: "אחוז גביה ממוצע",
+                    value: `${dashboardData.avgCollectionRate.toFixed(1)}%`,
+                    iconName: "check-circle",
+                    color: "#8B5CF6",
+                    subtitle: "יעילות הגביה"
+                  }),
+                  React.createElement(KPICard, {
+                    title: "ממוצע תקבולים חודשיים",
+                    value: formatCurrency(dashboardData.avgMonthlyReceipts),
+                    iconName: "receipt",
+                    color: "#06B6D4",
+                    subtitle: "תזרים מזומנים בפועל"
+                  })
+                ),
+
                 // Financial Analysis Charts
                 React.createElement('div', { className: "grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 mt-8" },
                   React.createElement(SimpleChart, {
@@ -1781,6 +1959,24 @@
                     title: "יתרות תשלום גבוהות",
                     data: dashboardData.outstandingPayments,
                     color: "#EF4444"
+                  }),
+                  React.createElement(SimpleChart, {
+                    title: "תזרים מזומנים חודשי",
+                    data: dashboardData.monthlyReceiptsData,
+                    color: "#06B6D4"
+                  }),
+                  React.createElement(SimpleChart, {
+                    title: "צנרת פרויקטים לפי שלבים",
+                    data: dashboardData.pipelineData,
+                    color: "#8B5CF6"
+                  }),
+                  React.createElement(SimpleChart, {
+                    title: "מגמות עונתיות - 8 רבעונים אחרונים",
+                    data: dashboardData.seasonalTrends.map(trend => ({
+                      label: trend.label,
+                      value: trend.revenue
+                    })),
+                    color: "#F59E0B"
                   })
                 ),
 
@@ -1801,6 +1997,51 @@
                       React.createElement('div', { className: "text-sm text-blue-800" }, 'סה״כ פרויקטים')
                     )
                   )
+                ),
+
+                // Collection Velocity Analysis
+                React.createElement('div', { className: "bg-white rounded-lg shadow p-6 mt-6" },
+                  React.createElement('h3', { className: "text-lg font-semibold text-gray-900 mb-4" }, 'ניתוח מהירות גביה'),
+                  dashboardData.collectionVelocities.length > 0 ? 
+                    React.createElement('div', { className: "space-y-3" },
+                      React.createElement('div', { className: "grid grid-cols-1 lg:grid-cols-2 gap-6 mb-4" },
+                        React.createElement('div', { className: "bg-blue-50 rounded-lg p-4" },
+                          React.createElement('div', { className: "text-2xl font-bold text-blue-600" }, `${Math.round(dashboardData.avgDaysToFirstPayment)} ימים`),
+                          React.createElement('div', { className: "text-sm text-blue-800" }, 'ממוצע ימים לתשלום ראשון')
+                        ),
+                        React.createElement('div', { className: "bg-green-50 rounded-lg p-4" },
+                          React.createElement('div', { className: "text-2xl font-bold text-green-600" }, `${dashboardData.avgCollectionRate.toFixed(1)}%`),
+                          React.createElement('div', { className: "text-sm text-green-800" }, 'ממוצע אחוז גביה')
+                        )
+                      ),
+                      React.createElement('div', { className: "max-h-64 overflow-y-auto" },
+                        React.createElement('table', { className: "w-full text-sm" },
+                          React.createElement('thead', { className: "bg-gray-50 sticky top-0" },
+                            React.createElement('tr', null,
+                              React.createElement('th', { className: "px-4 py-2 text-right" }, 'לקוח'),
+                              React.createElement('th', { className: "px-4 py-2 text-right" }, 'ימים לתשלום'),
+                              React.createElement('th', { className: "px-4 py-2 text-right" }, 'אחוז גביה'),
+                              React.createElement('th', { className: "px-4 py-2 text-right" }, 'יתרה')
+                            )
+                          ),
+                          React.createElement('tbody', null,
+                            dashboardData.collectionVelocities.slice(0, 10).map((cv, index) =>
+                              React.createElement('tr', { key: index, className: "border-b" },
+                                React.createElement('td', { className: "px-4 py-2 font-medium" }, cv.clientName),
+                                React.createElement('td', { className: "px-4 py-2" }, Math.round(cv.daysToFirstPayment)),
+                                React.createElement('td', { className: "px-4 py-2" },
+                                  React.createElement('span', { 
+                                    className: `px-2 py-1 rounded text-xs ${cv.collectionRate >= 0.8 ? 'bg-green-100 text-green-700' : cv.collectionRate >= 0.5 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`
+                                  }, `${(cv.collectionRate * 100).toFixed(1)}%`)
+                                ),
+                                React.createElement('td', { className: "px-4 py-2" }, formatCurrency(cv.remainingValue))
+                              )
+                            )
+                          )
+                        )
+                      )
+                    ) :
+                    React.createElement('div', { className: "text-center text-gray-500 py-8" }, 'אין נתונים מספיקים לניתוח מהירות גביה')
                 )
               ),
 
