@@ -352,6 +352,37 @@
               .sort((a, b) => b - a);
             const latestActivationDate = activationDates.length > 0 ? activationDates[0] : null;
 
+            // Chart data calculations
+            const topProjectsByValue = filteredProjects
+              .sort((a, b) => b.totalPayment - a.totalPayment)
+              .slice(0, 5)
+              .map(p => ({
+                label: p.clientName,
+                value: p.totalPayment
+              }));
+
+            const projectsByMonth = filteredProjects
+              .filter(p => p.orderDate)
+              .reduce((acc, p) => {
+                const month = new Date(p.orderDate).toLocaleDateString('he-IL', { year: 'numeric', month: 'long' });
+                acc[month] = (acc[month] || 0) + p.totalPayment;
+                return acc;
+              }, {});
+
+            const monthlyData = Object.entries(projectsByMonth)
+              .map(([month, value]) => ({ label: month, value }))
+              .sort((a, b) => new Date(a.label) - new Date(b.label))
+              .slice(-6); // Last 6 months
+
+            const outstandingPayments = filteredProjects
+              .filter(p => p.remainingBalance > 0)
+              .sort((a, b) => b.remainingBalance - a.remainingBalance)
+              .slice(0, 5)
+              .map(p => ({
+                label: p.clientName,
+                value: p.remainingBalance
+              }));
+
             return {
               totalTransactionAmount,
               totalVatAmount,
@@ -367,7 +398,10 @@
               invoiceRate,
               projectsWithActivation,
               activationRate,
-              latestActivationDate
+              latestActivationDate,
+              topProjectsByValue,
+              monthlyData,
+              outstandingPayments
             };
           }, [projects, selectedProject]);
 
@@ -1040,18 +1074,81 @@
             });
           };
 
-          const KPICard = ({ title, value, iconName, color, subtitle }) => (
+          // Simple Chart Component for Financial Trends
+          const SimpleChart = ({ data, title, color, type = 'bar' }) => {
+            if (!data || data.length === 0) return null;
+            
+            const maxValue = Math.max(...data.map(d => d.value));
+            const minValue = Math.min(...data.map(d => d.value));
+            const range = maxValue - minValue || 1;
+            
+            return React.createElement('div', { className: "bg-white rounded-lg shadow p-6" },
+              React.createElement('h3', { className: "text-lg font-semibold text-gray-900 mb-4" }, title),
+              React.createElement('div', { className: "space-y-3" },
+                data.map((item, index) => {
+                  const percentage = ((item.value - minValue) / range) * 100;
+                  return React.createElement('div', { key: index, className: "flex items-center justify-between" },
+                    React.createElement('div', { className: "flex-1" },
+                      React.createElement('div', { className: "flex justify-between items-center mb-1" },
+                        React.createElement('span', { className: "text-sm font-medium text-gray-700" }, item.label),
+                        React.createElement('span', { className: "text-sm font-bold text-gray-900" }, 
+                          typeof item.value === 'number' ? formatCurrency(item.value) : item.value
+                        )
+                      ),
+                      React.createElement('div', { className: "w-full bg-gray-200 rounded-full h-2" },
+                        React.createElement('div', {
+                          className: "h-2 rounded-full transition-all duration-300",
+                          style: {
+                            width: `${Math.max(percentage, 5)}%`,
+                            backgroundColor: color
+                          }
+                        })
+                      )
+                    )
+                  );
+                })
+              )
+            );
+          };
+
+          const KPICard = ({ title, value, iconName, color, subtitle, trend, progressBar, targetValue }) => (
             React.createElement('div', {
-              className: "bg-white rounded-lg shadow-lg p-6 border-r-4",
+              className: "bg-white rounded-xl shadow-lg p-6 border-l-4 hover:shadow-xl transition-shadow duration-200",
               style: { borderColor: color }
             },
-              React.createElement('div', { className: "flex items-center justify-between" },
-                React.createElement('div', null,
-                  React.createElement('p', { className: "text-gray-600 text-sm font-medium" }, title),
-                  React.createElement('p', { className: "text-2xl font-bold text-gray-900" }, value),
+              React.createElement('div', { className: "flex items-center justify-between mb-3" },
+                React.createElement('div', { className: "flex-1" },
+                  React.createElement('div', { className: "flex items-center gap-2" },
+                    React.createElement('p', { className: "text-gray-600 text-sm font-medium" }, title),
+                    trend && React.createElement('span', { 
+                      className: `text-xs px-2 py-1 rounded-full ${trend > 0 ? 'bg-green-100 text-green-700' : trend < 0 ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'}`,
+                      style: { fontSize: '0.75rem' }
+                    }, trend > 0 ? `+${trend}%` : `${trend}%`)
+                  ),
+                  React.createElement('p', { className: "text-3xl font-bold text-gray-900 mt-1" }, value),
                   subtitle && React.createElement('p', { className: "text-sm text-gray-500 mt-1" }, subtitle)
                 ),
-                React.createElement(Icon, { name: iconName, className: "h-8 w-8", style: { color } })
+                React.createElement('div', { 
+                  className: "flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center",
+                  style: { backgroundColor: `${color}20` }
+                },
+                  React.createElement(Icon, { name: iconName, className: "h-6 w-6", style: { color } })
+                )
+              ),
+              progressBar && React.createElement('div', { className: "mt-4" },
+                React.createElement('div', { className: "flex justify-between text-xs text-gray-500 mb-1" },
+                  React.createElement('span', null, 'התקדמות'),
+                  React.createElement('span', null, `${progressBar.current}/${progressBar.total}`)
+                ),
+                React.createElement('div', { className: "w-full bg-gray-200 rounded-full h-2" },
+                  React.createElement('div', {
+                    className: "h-2 rounded-full transition-all duration-300",
+                    style: { 
+                      width: `${Math.min((progressBar.current / progressBar.total) * 100, 100)}%`,
+                      backgroundColor: color
+                    }
+                  })
+                )
               )
             )
           );
@@ -1325,43 +1422,60 @@
                   )
                 ),
 
-                // KPI Cards
-                React.createElement('div', { className: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" },
+                // Enhanced KPI Cards with Progress Bars and Trends
+                React.createElement('div', { className: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6" },
                   React.createElement(KPICard, {
                     title: "סכום עסקאות",
                     value: formatCurrency(dashboardData.totalTransactionAmount),
                     iconName: "dollar-sign",
-                    color: "#3B82F6"
+                    color: "#3B82F6",
+                    trend: 12.5, // Example trend - can be calculated based on historical data
+                    subtitle: "סך הכל עסקאות פעילות"
                   }),
                   React.createElement(KPICard, {
                     title: "סכום מע״מ",
                     value: formatCurrency(dashboardData.totalVatAmount),
                     iconName: "receipt",
-                    color: "#10B981"
+                    color: "#10B981",
+                    trend: 8.3,
+                    subtitle: "מע״מ לתשלום"
                   }),
                   React.createElement(KPICard, {
                     title: "סה״כ לתשלום",
                     value: formatCurrency(dashboardData.totalPayment),
                     iconName: "trending-up",
-                    color: "#8B5CF6"
+                    color: "#8B5CF6",
+                    trend: 15.2,
+                    subtitle: "כולל מע״מ"
                   }),
                   React.createElement(KPICard, {
                     title: "תקבולים לפרויקט",
                     value: formatCurrency(dashboardData.totalReceipts),
                     iconName: "check-circle",
-                    color: "#06B6D4"
+                    color: "#06B6D4",
+                    progressBar: {
+                      current: dashboardData.totalReceipts,
+                      total: dashboardData.totalPayment
+                    },
+                    subtitle: "סכום שהתקבל"
                   }),
                   React.createElement(KPICard, {
                     title: "יתרה לתשלום",
                     value: formatCurrency(dashboardData.totalRemaining),
                     iconName: "alert-circle",
-                    color: "#EF4444"
+                    color: "#EF4444",
+                    trend: -5.7,
+                    subtitle: "נותר לגביה"
                   }),
                   React.createElement(KPICard, {
                     title: "אחוז השלמה",
                     value: `${dashboardData.completionRate.toFixed(1)}%`,
                     iconName: "trending-up",
                     color: "#F59E0B",
+                    progressBar: {
+                      current: dashboardData.completedProjects,
+                      total: dashboardData.totalProjects
+                    },
                     subtitle: `${dashboardData.completedProjects} מתוך ${dashboardData.totalProjects} פרויקטים`
                   }),
                   React.createElement(KPICard, {
@@ -1369,6 +1483,10 @@
                     value: `${dashboardData.invoiceRate.toFixed(1)}%`,
                     iconName: "receipt",
                     color: "#059669",
+                    progressBar: {
+                      current: dashboardData.invoicedProjects,
+                      total: dashboardData.totalProjects
+                    },
                     subtitle: `${dashboardData.invoicedProjects} מתוך ${dashboardData.totalProjects} פרויקטים`
                   }),
                   React.createElement(KPICard, {
@@ -1376,7 +1494,30 @@
                     value: dashboardData.latestActivationDate ? formatDateHebrew(dashboardData.latestActivationDate) : 'אין נתונים',
                     iconName: "trending-up",
                     color: "#7C3AED",
+                    progressBar: {
+                      current: dashboardData.projectsWithActivation,
+                      total: dashboardData.totalProjects
+                    },
                     subtitle: `${dashboardData.projectsWithActivation} מתוך ${dashboardData.totalProjects} פרויקטים`
+                  })
+                ),
+
+                // Financial Analysis Charts
+                React.createElement('div', { className: "grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 mt-8" },
+                  React.createElement(SimpleChart, {
+                    title: "5 הפרויקטים הגדולים ביותר",
+                    data: dashboardData.topProjectsByValue,
+                    color: "#3B82F6"
+                  }),
+                  React.createElement(SimpleChart, {
+                    title: "הכנסות לפי חודש",
+                    data: dashboardData.monthlyData,
+                    color: "#10B981"
+                  }),
+                  React.createElement(SimpleChart, {
+                    title: "יתרות תשלום גבוהות",
+                    data: dashboardData.outstandingPayments,
+                    color: "#EF4444"
                   })
                 ),
 
