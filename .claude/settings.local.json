@@ -26,7 +26,8 @@
       "Bash(pkill:*)",
       "Bash(true)",
       "mcp__playwright__browser_tab_close",
-      "Bash(sed:*)"
+      "Bash(sed:*)",
+      "Bash(git add:*)"
     ],
     "deny": []
   }

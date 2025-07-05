@@ -339,7 +339,7 @@
           const dashboardData = useMemo(() => {
             const filteredProjects = selectedProject === 'all' 
               ? projects 
-              : projects.filter(p => p.id === parseInt(selectedProject));
+              : projects.filter(p => p.id === selectedProject);
 
             const totalTransactionAmount = filteredProjects.reduce((sum, p) => sum + p.transactionAmount, 0);
             const totalVatAmount = filteredProjects.reduce((sum, p) => sum + (p.transactionAmount * p.vatPercent / 100), 0);
